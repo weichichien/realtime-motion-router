@@ -252,6 +252,139 @@ Subnet      255.255.255.0
 - 即使未來 metric 計算方式改變，資料介面也盡量保持穩定。
 - 正式展演系統應該容易檢查、容易除錯。
 
+## Project Structure / 專案結構
+
+```text
+realtime-motion-router/
+├─ sender/
+│  └─ websocket_to_osc.py
+├─ receiver/
+│  └─ osc_receiver.py
+├─ config/
+│  └─ README.md
+├─ requirements.txt
+├─ .gitignore
+└─ README.md
+```
+
+- `sender/`: reads motion metrics and sends OSC / 讀取 motion metrics 並送出 OSC。
+- `receiver/`: reference receiver for testing and diagnostics / 標準接收端測試與除錯工具。
+- `config/`: reserved for future network and target configuration / 預留未來網路與 target 設定。
+- `requirements.txt`: shared Python dependencies / Sender 與 Receiver 共用的 Python 套件需求。
+
+## Minimal v0.1 Test / 最小版跨電腦測試
+
+The first implementation deliberately sends only one metric: `energy`.
+
+第一版刻意只傳送一個指標 `energy`。先確認整條跨電腦資料鏈正常，再加入其他 metrics。
+
+### Install dependencies / 安裝套件
+
+On each computer, open a terminal in this repository and create or activate a Python virtual environment if needed. Then run:
+
+兩台電腦都要進入這個 repository，在需要時建立或啟用 Python virtual environment，然後執行：
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+On macOS, use `python3` instead of `python` if that is how Python is installed.
+
+若 macOS 的 Python 指令是 `python3`，請改用：
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+### Computer B: start Receiver first / 電腦 B：先啟動 Receiver
+
+```bash
+python receiver/osc_receiver.py --port 9000
+```
+
+macOS:
+
+```bash
+python3 receiver/osc_receiver.py --port 9000
+```
+
+Expected startup message / 預期畫面：
+
+```text
+Listening for OSC on 0.0.0.0:9000
+Expected address: /motion/energy
+Press Ctrl+C to stop.
+```
+
+### Computer A: start motion analysis / 電腦 A：啟動動作分析
+
+Start `realtime-dance-analysis` and confirm that the dashboard shows changing live metrics.
+
+啟動 `realtime-dance-analysis`，確認 webcam、pose tracking 與即時 metrics 都正常變動。
+
+### Computer A: start Sender / 電腦 A：啟動 Sender
+
+Replace `192.168.50.20` with the Receiver computer's actual Ethernet or LAN IP address.
+
+請把 `192.168.50.20` 換成接收端電腦實際的 Ethernet 或 LAN IP。
+
+```bash
+python sender/websocket_to_osc.py --target 192.168.50.20 --port 9000
+```
+
+The Sender uses this WebSocket source by default:
+
+Sender 預設讀取：
+
+```text
+ws://127.0.0.1:8000/ws/metrics
+```
+
+and sends:
+
+並送出：
+
+```text
+OSC address: /motion/energy
+UDP port:    9000
+```
+
+If the complete path is working, the Receiver computer should continuously display changing values such as:
+
+如果整條資料鏈正常，接收端應持續看到類似：
+
+```text
+/motion/energy 2.183421
+/motion/energy 7.552103
+/motion/energy 15.907332
+```
+
+Move in front of the camera and confirm that the values change.
+
+在攝影機前移動，確認數值會隨動作改變。
+
+### Success criterion / 成功標準
+
+```text
+camera
+  ->
+realtime-dance-analysis
+  ->
+/ws/metrics
+  ->
+Sender
+  ->
+OSC / UDP
+  ->
+Ethernet or LAN
+  ->
+Receiver
+```
+
+If changing `/motion/energy` values appear on Computer B, the v0.1 cross-computer pipeline is working.
+
+只要電腦 B 能看到持續變化的 `/motion/energy`，就代表 v0.1 的跨電腦資料傳輸成功。
+
 ## Initial Development Plan / 初始開發計畫
 
 1. Receive `/ws/metrics` from `realtime-dance-analysis`.
@@ -282,17 +415,9 @@ Completed:
 - 外部 Python client 已成功讀取 `/ws/metrics`。
 - 兩台開發電腦之間的獨立 Ethernet 連線已測試成功。
 
-The next milestone is:
+The minimal Sender and Receiver have now been implemented. The next milestone is to verify the v0.1 pipeline across the dedicated Ethernet link.
 
-```text
-WebSocket metrics
-        ->
-Realtime Motion Router Sender
-        ->
-OSC / UDP
-        ->
-Receiver on second computer
-```
+最小版 Sender 與 Receiver 已建立。下一個 milestone 是在獨立 Ethernet 連線上完成實際跨電腦驗證。
 
 ## Repository Scope / Repository 範圍
 

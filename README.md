@@ -14,15 +14,25 @@ This project is being developed as shared infrastructure for multi-computer inte
 
 本工具的目標是讓不同子計畫都能用相同方式測試與接收即時動作資料，而不需要依賴某一台特定的電腦。
 
-The initial data source is:
+The current AI PUNK motion-analysis source is:
 
-- [YukiHataRin/realtime-dance-analysis](https://github.com/YukiHataRin/realtime-dance-analysis)
+- [weichichien/realtime-motion-analysis](https://github.com/weichichien/realtime-motion-analysis) — AI PUNK fork used for current development
+- Upstream parent: [YukiHataRin/realtime-dance-analysis](https://github.com/YukiHataRin/realtime-dance-analysis)
 - Input endpoint: `/ws/metrics`
-- Transport: WebSocket / JSON
+- Input transport: WebSocket / JSON
+- Output transport: OSC over UDP
 
-The first target transport is OSC over UDP.
+目前 AI PUNK 使用的動作分析來源是：
 
-第一階段使用 OSC over UDP 把資料送到另一台電腦。
+- [weichichien/realtime-motion-analysis](https://github.com/weichichien/realtime-motion-analysis) — 目前 AI PUNK 使用與修改的 fork
+- 原始 upstream：[YukiHataRin/realtime-dance-analysis](https://github.com/YukiHataRin/realtime-dance-analysis)
+- 輸入 endpoint：`/ws/metrics`
+- 輸入傳輸：WebSocket / JSON
+- 輸出傳輸：OSC over UDP
+
+For live-performance use, the motion-analysis application can run with Preview OFF / analysis-only mode so pose analysis and metrics continue without returning and rendering processed preview frames.
+
+正式展演時，動作分析程式可使用 Preview OFF / analysis-only mode：MediaPipe 與 metrics 會持續運作，但不再回傳與顯示 processed preview，以降低不必要的顯示負擔。
 
 ## Two Tools / 兩種工具
 
@@ -42,7 +52,9 @@ Responsibilities:
 - Receive live JSON motion metrics
 - Convert the data to OSC messages
 - Send the data to one or more receiver computers
-- Later support configuration, multiple targets, logging, and diagnostics
+- Read source and destination settings from local configuration
+- Fan out the same metric stream to multiple independent OSC targets
+- Future work: logging and diagnostics
 
 主要工作：
 
@@ -50,7 +62,9 @@ Responsibilities:
 - 接收即時 JSON 動作資料
 - 將資料轉成 OSC
 - 把資料送到一台或多台接收電腦
-- 未來可加入多個 target、設定檔、記錄與診斷功能
+- 從本機設定檔讀取 source 與 destination
+- 將同一份 metric stream 同時送往多個彼此獨立的 OSC target
+- 後續可加入 logging 與 diagnostics
 
 The Sender is not intended to be Windows-only. Windows is simply the current development platform.
 
@@ -273,6 +287,222 @@ realtime-motion-router/
 - `config/`: network and target configuration / 網路與 target 設定。`config.example.json` 可提交，個別電腦使用的 `config.json` 不會被 Git 追蹤。
 - `requirements.txt`: shared Python dependencies / Sender 與 Receiver 共用的 Python 套件需求。
 
+## Initialize for a New Subproject / 新子計畫初始化
+
+This section is the recommended starting point for another AI PUNK subproject. The first goal is not to integrate OSC directly into the subproject code. First, use the reference Receiver in this repository to prove that the computer and network can receive the motion stream correctly.
+
+這一節是其他 AI PUNK 子計畫建議採用的初始化流程。第一步不是立刻把 OSC 寫進自己的程式，而是先使用本 repository 內建的標準 Receiver，確認該電腦與網路可以正確收到 motion stream。
+
+### 1. Decide the role / 先確認這台電腦的角色
+
+- **Most downstream subprojects should start as Receiver only.** They receive OSC from the central motion-analysis / Sender computer.
+- **Only the computer connected to the motion-analysis source needs to run the Sender.**
+
+- **大多數下游子計畫只需要先當 Receiver。** 它們從中央 motion-analysis / Sender 電腦接收 OSC。
+- **只有連接 motion-analysis source 的電腦需要執行 Sender。**
+
+Typical system:
+
+```text
+Motion-analysis computer
+  realtime-motion-analysis
+          |
+          | WebSocket / JSON
+          v
+  realtime-motion-router Sender
+       /        |        \
+      /         |         \
+ OSC/UDP     OSC/UDP     OSC/UDP
+    v           v           v
+Project A    Project B    Project C
+Receiver     Receiver     Receiver
+```
+
+### 2. Prerequisites / 前置需求
+
+- Git
+- Python 3 with `venv` support. Current development has been tested with Python 3.10.
+- A network connection to the Sender computer. Dedicated Ethernet is recommended for performance use.
+- GitHub access to this repository if the repository is not public.
+
+- Git
+- 支援 `venv` 的 Python 3。目前開發環境已使用 Python 3.10 驗證。
+- 能連到 Sender 電腦的網路。正式展演建議使用 dedicated Ethernet。
+- 若 repository 不是公開的，需先取得 GitHub 存取權限。
+
+### 3. Clone the repository / Clone repository
+
+```bash
+git clone https://github.com/weichichien/realtime-motion-router.git
+cd realtime-motion-router
+```
+
+### 4. Create a local Python environment / 建立本機 Python 環境
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+The virtual environment is local to this repository. Do not share or commit `.venv`.
+
+這個 virtual environment 只屬於這份 repository，不要分享或提交 `.venv`。
+
+### 5. Create the local config / 建立本機 config
+
+Copy the example file once:
+
+Windows PowerShell:
+
+```powershell
+Copy-Item config/config.example.json config/config.json
+```
+
+macOS / Linux:
+
+```bash
+cp config/config.example.json config/config.json
+```
+
+`config/config.json` is intentionally ignored by Git. Each computer keeps its own IP and port settings.
+
+`config/config.json` 刻意不進 Git。每台電腦各自保存自己的 IP 與 port 設定。
+
+### 6. Receiver setup for a subproject / 子計畫 Receiver 設定
+
+For a normal Receiver computer, the important section is:
+
+一般 Receiver 電腦真正需要注意的是：
+
+```json
+{
+  "osc_receiver": {
+    "listen_interface": "all",
+    "listen_port": 9000
+  }
+}
+```
+
+The Receiver does **not** need the Sender IP in its own config. It simply listens on its local UDP port.
+
+Receiver 自己的 config **不需要填 Sender IP**；它只需要在本機 UDP port 等待資料。
+
+The Sender computer must add this Receiver computer to its own `osc_outputs`, for example:
+
+Sender 電腦則必須把這台 Receiver 加入自己的 `osc_outputs`，例如：
+
+```json
+{
+  "name": "Project A",
+  "destination_ip": "192.168.50.30",
+  "destination_port": 9000
+}
+```
+
+The destination IP is the Receiver computer IP, not the Sender IP.
+
+`destination_ip` 是 Receiver 電腦的 IP，不是 Sender 自己的 IP。
+
+### 7. Check the network before running the app / 執行前先確認網路
+
+The Sender and Receiver must be able to reach each other on the selected LAN. For a direct Ethernet setup, they should use addresses in the same subnet, for example:
+
+Sender 與 Receiver 必須位於可以互相連線的 LAN。若使用直接 Ethernet，可使用同一 subnet，例如：
+
+```text
+Sender       192.168.50.10
+Project A    192.168.50.30
+Subnet       255.255.255.0
+```
+
+Before testing OSC, confirm basic connectivity with `ping`.
+
+測試 OSC 前，先使用 `ping` 確認基本網路連線。
+
+### 8. Start the reference Receiver / 啟動標準 Receiver
+
+From the repository root:
+
+在 repository root 執行：
+
+```bash
+python receiver/osc_receiver.py
+```
+
+On macOS, use `python3` if your environment requires it.
+
+若 macOS 環境使用 `python3`，請改用 `python3 receiver/osc_receiver.py`。
+
+Expected startup message:
+
+預期啟動畫面：
+
+```text
+Listening for OSC on all interfaces, port 9000
+Expected addresses:
+  /motion/energy
+  /motion/sync_velocity
+  /motion/sync_correlation
+  /motion/expansion
+  /motion/curvature
+  /motion/height
+  /motion/sway
+  /motion/torque
+  /motion/jerk
+Press Ctrl+C to stop.
+```
+
+### 9. Sender startup / Sender 啟動
+
+On the motion-analysis computer:
+
+在 motion-analysis 電腦上：
+
+1. Start `realtime-motion-analysis`.
+2. Enable the camera and confirm that its metrics are changing.
+3. For live use, Preview OFF / analysis-only mode is recommended after visual verification.
+4. Confirm the dashboard WebSocket status is connected. If it shows `WS DISCONNECTED`, refresh the browser page.
+5. Start the Router Sender:
+
+1. 啟動 `realtime-motion-analysis`。
+2. 啟用 camera，確認 metrics 正在變化。
+3. 視覺確認完成後，正式即時使用建議切到 Preview OFF / analysis-only mode。
+4. 確認 dashboard 的 WebSocket 狀態已連線；若顯示 `WS DISCONNECTED`，重新整理瀏覽器頁面。
+5. 啟動 Router Sender：
+
+```bash
+python sender/websocket_to_osc.py
+```
+
+The Sender should list every configured output at startup.
+
+Sender 啟動時應列出所有已設定的 destination。
+
+### 10. Initialization success criterion / 初始化成功標準
+
+A new subproject is considered initialized when the reference Receiver continuously prints complete nine-metric snapshots and the values change when the performer moves.
+
+當標準 Receiver 能持續印出完整九項 metrics，而且表演者移動時數值會跟著變化，就可以視為這個新子計畫已完成基本初始化。
+
+Only after this test succeeds should the subproject replace the reference Receiver with OSC reception inside its own application.
+
+只有這個測試成功之後，子計畫才建議把標準 Receiver 換成自己程式內的 OSC 接收功能。
+
+> **Important:** Normally, do not run the reference Receiver and another application bound to the same UDP port on the same computer at the same time. Stop the reference Receiver before testing the subproject application on port 9000.
+>
+> **重要：** 一般情況下，同一台電腦不要同時讓標準 Receiver 與另一個程式綁定同一個 UDP port。若子計畫程式也使用 9000，測試前請先停止標準 Receiver。
+
 ## Minimal v0.4 Test / 最小版跨電腦測試
 
 The current implementation sends all nine motion metrics as separate OSC addresses to every destination listed in `config/config.json`.
@@ -411,9 +641,9 @@ Press Ctrl+C to stop.
 
 ### Computer A: start motion analysis / 電腦 A：啟動動作分析
 
-Start `realtime-dance-analysis` and confirm that the dashboard shows changing live metrics.
+Start `realtime-motion-analysis` and confirm that the dashboard shows changing live metrics. After visual verification, Preview OFF / analysis-only mode is recommended for lower preview overhead during live use.
 
-啟動 `realtime-dance-analysis`，確認 webcam、pose tracking 與即時 metrics 都正常變動。
+啟動 `realtime-motion-analysis`，確認 webcam、pose tracking 與即時 metrics 都正常變動。完成視覺確認後，正式即時使用建議切換到 Preview OFF / analysis-only mode，以降低 preview 額外負擔。
 
 ### Computer A: start Sender / 電腦 A：啟動 Sender
 
@@ -464,7 +694,7 @@ Move in front of the camera and confirm that multiple values change.
 ```text
 camera
   ->
-realtime-dance-analysis
+realtime-motion-analysis
   ->
 /ws/metrics
   ->
@@ -483,7 +713,7 @@ If complete nine-metric snapshots appear on every configured receiver and change
 
 ## Initial Development Plan / 初始開發計畫
 
-1. Receive `/ws/metrics` from `realtime-dance-analysis`.
+1. Receive `/ws/metrics` from the motion-analysis source.
 2. Verify and print the incoming JSON stream.
 3. Send one metric over OSC/UDP to a second computer.
 4. Send the complete metric frame.
@@ -497,23 +727,27 @@ If complete nine-metric snapshots appear on every configured receiver and change
 
 Completed:
 
-- The upstream `realtime-dance-analysis` application has been reproduced successfully on Windows.
-- Webcam pose tracking is working.
-- Live motion metrics are working.
+- The AI PUNK fork `realtime-motion-analysis` is running successfully on Windows.
+- Webcam pose tracking and the nine live motion metrics are working.
+- Preview OFF now provides an analysis-only mode that keeps pose analysis and metrics active while skipping processed-preview drawing/return.
 - A minimal external Python WebSocket client has successfully received the `/ws/metrics` stream.
 - A dedicated Ethernet link between two development computers has been tested successfully.
+- Router v0.4 can fan out every metric to every destination listed in `osc_outputs`.
+- The v0.4 Sender has been verified with the existing Mac Receiver after the multi-target change.
 
 目前已完成：
 
-- Windows 已成功復刻 `realtime-dance-analysis`。
-- Webcam 人體姿態追蹤正常。
-- 即時 motion metrics 正常。
+- AI PUNK fork `realtime-motion-analysis` 已在 Windows 正常運作。
+- Webcam 人體姿態追蹤與九項即時 motion metrics 正常。
+- Preview OFF 已改為 analysis-only mode：保留 pose analysis 與 metrics，但停止 processed preview 的繪製與回傳。
 - 外部 Python client 已成功讀取 `/ws/metrics`。
 - 兩台開發電腦之間的獨立 Ethernet 連線已測試成功。
+- Router v0.4 會把每項 metric fan-out 到 `osc_outputs` 中列出的所有 destination。
+- v0.4 multi-target 修改後，既有 Mac Receiver 已再次驗證可正常接收資料。
 
-The v0.2 nine-metric Ethernet test and v0.3 configuration milestone have been completed successfully. v0.4 adds real multi-target fan-out: one Sender can now transmit the same nine metrics directly to multiple independent OSC receivers.
+The current single-Receiver v0.4 test is stable. Simultaneous multi-Receiver validation will be completed when a second downstream computer/subproject is connected. Timing diagnostics remain a later task if periodic stalls need to be investigated.
 
-v0.2 的九項 metric Ethernet 跨電腦測試與 v0.3 config milestone 已完成。v0.4 正式加入 multi-target fan-out：一個 Sender 現在可以把相同九項 metrics 直接傳送給多台彼此獨立的 OSC Receiver。
+目前 v0.4 的單一 Receiver 測試穩定。等第二台 downstream 電腦／子計畫接入時，再完成真正的多 Receiver 同時驗證。若之後再出現週期性停頓，timing diagnostics 保留為後續工作。
 
 ## Repository Scope / Repository 範圍
 

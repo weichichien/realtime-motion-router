@@ -321,15 +321,18 @@ Then edit `config/config.json`. For the current two-computer Ethernet test:
 
 ```json
 {
-  "source": {
+  "motion_source": {
     "websocket_url": "ws://127.0.0.1:8000/ws/metrics"
   },
-  "sender": {
-    "target_ip": "192.168.50.20",
-    "target_port": 9000
-  },
-  "receiver": {
-    "listen_host": "0.0.0.0",
+  "osc_outputs": [
+    {
+      "name": "Mac receiver",
+      "destination_ip": "192.168.50.20",
+      "destination_port": 9000
+    }
+  ],
+  "osc_receiver": {
+    "listen_interface": "all",
     "listen_port": 9000
   }
 }
@@ -348,18 +351,22 @@ v0.3 開始採用的 **設定方式會延續到正式版本**：
 - Network addresses and ports are stored in `config/config.json`, not hard-coded in Python.
 - `config/config.example.json` is tracked by Git as a template.
 - Each computer keeps its own `config/config.json`, which is ignored by Git.
-- The motion-data source, Sender destinations, and Receiver listening settings remain separate concepts.
+- The motion-data source, OSC destinations, and local OSC receiving settings remain separate concepts.
+- Field names are written from the user's point of view: `destination_ip` means the remote computer that receives the data; `listen_interface` means the local interfaces on which this computer accepts OSC.
+- `listen_interface: "all"` hides the socket-specific `0.0.0.0` value from normal users.
 - For performance use, the same configuration mechanism can be used with a dedicated Ethernet LAN and fixed/private IP addresses.
 
 - IP、port 等網路參數放在 `config/config.json`，不寫死在 Python 程式裡。
 - `config/config.example.json` 會由 Git 管理，作為所有人的範例。
 - 每台電腦保留自己的 `config/config.json`，且不會被 Git 追蹤。
-- motion-data source、Sender 的傳送目的地、Receiver 的監聽設定會維持分離。
+- motion-data source、OSC 傳送目的地、以及本機 OSC 接收設定會維持分離。
+- 欄位名稱改成從使用者角度理解：`destination_ip` 是「資料要送到的對方 IP」；`listen_interface` 是「這台電腦在哪些本機網路介面接收 OSC」。
+- 一般使用者只需要使用 `listen_interface: "all"`，不需要理解 socket 的 `0.0.0.0`。
 - 正式展演使用 dedicated Ethernet 與固定/private IP 時，仍然使用同一套 config 機制。
 
-**One detail is still temporary in v0.3:** the current `sender` section contains only one `target_ip` and `target_port`. When multi-target routing is added, this part will become a list of targets. The overall configuration workflow will not change.
+The config schema is now prepared for multi-target routing: `osc_outputs` is already a list. In v0.3, the Sender uses the first item only. A later version will send to every enabled output without requiring another config-format change.
 
-**目前只有一個細節仍是暫時的：** v0.3 的 `sender` 只有一組 `target_ip` / `target_port`。加入 multi-target 後，這一段會改成 target list；但「只修改 config、不修改程式碼」的使用方式不會改變。
+目前 config schema 已經預先採用 multi-target 結構：`osc_outputs` 本身就是 list。v0.3 Sender 暫時只使用第一個項目；之後只需要擴充 Sender 讓它送到所有 output，不必再次修改 config 格式。
 
 For students and subprojects, the practical rule is:
 
@@ -383,7 +390,7 @@ python3 receiver/osc_receiver.py
 Expected startup message / 預期畫面：
 
 ```text
-Listening for OSC on 0.0.0.0:9000
+Listening for OSC on all interfaces, port 9000
 Expected addresses:
   /motion/energy
   /motion/sync_velocity
@@ -405,17 +412,17 @@ Start `realtime-dance-analysis` and confirm that the dashboard shows changing li
 
 ### Computer A: start Sender / 電腦 A：啟動 Sender
 
-Set the Receiver computer's actual Ethernet or LAN IP in `config/config.json`, then start the Sender:
+Set the receiving computer's Ethernet or LAN IP as `osc_outputs[].destination_ip` in `config/config.json`, then start the Sender:
 
-先在 `config/config.json` 設定接收端電腦實際的 Ethernet 或 LAN IP，再啟動 Sender：
+先把接收端電腦實際的 Ethernet 或 LAN IP 填入 `osc_outputs[].destination_ip`，再啟動 Sender：
 
 ```bash
 python sender/websocket_to_osc.py
 ```
 
-The Sender reads the WebSocket source, target IP, and target port from `config/config.json`.
+The Sender reads `motion_source.websocket_url` and the first `osc_outputs` destination from `config/config.json`.
 
-Sender 會從 `config/config.json` 讀取 WebSocket source、target IP 與 target port。
+Sender 會從 `config/config.json` 讀取 `motion_source.websocket_url` 與第一個 `osc_outputs` destination。
 
 It sends:
 
@@ -499,9 +506,9 @@ Completed:
 - 外部 Python client 已成功讀取 `/ws/metrics`。
 - 兩台開發電腦之間的獨立 Ethernet 連線已測試成功。
 
-The v0.2 nine-metric Ethernet test has been completed successfully. v0.3 moves the WebSocket source, OSC target IP/port, and Receiver listen settings into a local configuration file.
+The v0.2 nine-metric Ethernet test has been completed successfully. v0.3 moves the WebSocket source, OSC destinations, and local Receiver settings into a clearer final-oriented configuration schema.
 
-v0.2 的九項 metric Ethernet 跨電腦測試已成功完成。v0.3 將 WebSocket source、OSC target IP/port 與 Receiver listen 設定移到本機設定檔。
+v0.2 的九項 metric Ethernet 跨電腦測試已成功完成。v0.3 將 WebSocket source、OSC destinations 與本機 Receiver 設定移到較清楚、可直接延續到正式版本的 config schema。
 
 ## Repository Scope / Repository 範圍
 

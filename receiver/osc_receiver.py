@@ -26,7 +26,7 @@ METRIC_NAMES = (
     "jerk",
 )
 
-DEFAULT_CONFIG_PATH = Path("config/config.json")
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.json"
 latest_metrics = {}
 
 
@@ -48,7 +48,7 @@ def load_config(config_path):
     if not path.exists():
         raise FileNotFoundError(
             f"Configuration file not found: {path}\n"
-            "Copy config/config.example.json to config/config.json and edit it first."
+            f"Copy {path.parent / 'config.example.json'} to {path} and edit it first."
         )
 
     with path.open("r", encoding="utf-8") as file:

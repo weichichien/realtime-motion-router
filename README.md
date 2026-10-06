@@ -763,6 +763,8 @@ This separation makes it possible to use future sources such as Kinect or other 
 
 因此未來即使改成 Kinect 或其他 motion tracking 系統，只要輸出資料格式一致，下游子計畫仍然可以繼續使用同一套 Router / Receiver。
 
-## License
+## License / 授權
 
-License to be determined before external distribution.
+This project is released under the MIT License. See [LICENSE](LICENSE).
+
+本專案採用 MIT License。詳細內容請參考 [LICENSE](LICENSE)。

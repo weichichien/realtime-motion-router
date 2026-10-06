@@ -58,6 +58,32 @@ The Sender target port and Receiver listen port must match.
 
 Sender 的 `target_port` 與 Receiver 的 `listen_port` 必須一致。
 
+## Long-term configuration model / 正式版本的設定原則
+
+The v0.3 configuration mechanism is not a temporary testing workaround. It is the intended configuration model for the project.
+
+v0.3 的 config 機制不是暫時測試用的 workaround，而是本專案預計沿用到正式版本的設定方式。
+
+The stable parts are:
+
+- Keep IP addresses and ports outside Python source code.
+- Track `config.example.json` in Git.
+- Keep each machine's `config.json` local and ignored by Git.
+- Use the same mechanism for Wi-Fi development and dedicated-Ethernet performance setups.
+- Let each subproject maintain its own local network values without changing shared source code.
+
+會維持不變的原則：
+
+- IP 與 port 不寫死在 Python source code。
+- Git 中保留 `config.example.json`。
+- 每台電腦自己的 `config.json` 留在本機，不進 Git。
+- 開發時用 Wi-Fi、展演時用 dedicated Ethernet，都沿用相同設定機制。
+- 各子計畫只修改自己的網路參數，不需要修改共用程式碼。
+
+The only planned schema change is the Sender destination section. v0.3 has one target; a later multi-target version will represent destinations as a list. Users will still configure targets in `config/config.json`.
+
+唯一預計會再調整的是 Sender 的目的地格式：v0.3 只有一個 target；之後 multi-target 版本會改成 target list。但使用者仍然只需要在 `config/config.json` 設定。
+
 ## Current limitation / 目前限制
 
 v0.3 supports one OSC target. Multiple receivers will be added in a later version.

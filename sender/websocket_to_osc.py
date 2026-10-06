@@ -1,13 +1,14 @@
 """WebSocket -> OSC sender for Realtime Motion Router.
 
-Milestone v0.2:
-- Read /ws/metrics JSON from realtime-dance-analysis.
+Milestone v0.3:
+- Read WebSocket source and OSC target from config/config.json.
 - Forward all nine current motion metrics as OSC messages.
 """
 
 import argparse
 import asyncio
 import json
+from pathlib import Path
 
 import websockets
 from pythonosc.udp_client import SimpleUDPClient
@@ -25,28 +26,44 @@ METRIC_NAMES = (
     "jerk",
 )
 
+DEFAULT_CONFIG_PATH = Path("config/config.json")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Forward motion metrics from a WebSocket source to an OSC receiver."
     )
     parser.add_argument(
-        "--source",
-        default="ws://127.0.0.1:8000/ws/metrics",
-        help="WebSocket metrics source URL.",
-    )
-    parser.add_argument(
-        "--target",
-        required=True,
-        help="Receiver IP address, for example 192.168.50.20.",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=9000,
-        help="Receiver UDP port. Default: 9000.",
+        "--config",
+        default=str(DEFAULT_CONFIG_PATH),
+        help="Path to JSON configuration file. Default: config/config.json",
     )
     return parser.parse_args()
+
+
+def load_config(config_path):
+    path = Path(config_path)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found: {path}\n"
+            "Copy config/config.example.json to config/config.json and edit it first."
+        )
+
+    with path.open("r", encoding="utf-8") as file:
+        config = json.load(file)
+
+    try:
+        source = config["source"]["websocket_url"]
+        target = config["sender"]["target_ip"]
+        port = int(config["sender"]["target_port"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(
+            "Invalid configuration. Required fields: "
+            "source.websocket_url, sender.target_ip, sender.target_port"
+        ) from error
+
+    return source, target, port
 
 
 async def forward_metrics(source, target, port):
@@ -94,7 +111,8 @@ async def forward_metrics(source, target, port):
 
 async def main():
     args = parse_args()
-    await forward_metrics(args.source, args.target, args.port)
+    source, target, port = load_config(args.config)
+    await forward_metrics(source, target, port)
 
 
 if __name__ == "__main__":
@@ -102,3 +120,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nSender stopped.")
+    except (FileNotFoundError, ValueError, json.JSONDecodeError) as error:
+        print(f"Configuration error: {error}")

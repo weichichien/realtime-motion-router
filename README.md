@@ -272,11 +272,11 @@ realtime-motion-router/
 - `config/`: reserved for future network and target configuration / 預留未來網路與 target 設定。
 - `requirements.txt`: shared Python dependencies / Sender 與 Receiver 共用的 Python 套件需求。
 
-## Minimal v0.1 Test / 最小版跨電腦測試
+## Minimal v0.2 Test / 最小版跨電腦測試
 
-The first implementation deliberately sends only one metric: `energy`.
+The current minimal implementation sends all nine motion metrics as separate OSC addresses.
 
-第一版刻意只傳送一個指標 `energy`。先確認整條跨電腦資料鏈正常，再加入其他 metrics。
+目前最小版本會把九個 motion metrics 分別以獨立 OSC address 傳送。
 
 ### Install dependencies / 安裝套件
 
@@ -312,7 +312,16 @@ Expected startup message / 預期畫面：
 
 ```text
 Listening for OSC on 0.0.0.0:9000
-Expected address: /motion/energy
+Expected addresses:
+  /motion/energy
+  /motion/sync_velocity
+  /motion/sync_correlation
+  /motion/expansion
+  /motion/curvature
+  /motion/height
+  /motion/sway
+  /motion/torque
+  /motion/jerk
 Press Ctrl+C to stop.
 ```
 
@@ -345,23 +354,30 @@ and sends:
 並送出：
 
 ```text
-OSC address: /motion/energy
-UDP port:    9000
+/motion/energy
+/motion/sync_velocity
+/motion/sync_correlation
+/motion/expansion
+/motion/curvature
+/motion/height
+/motion/sway
+/motion/torque
+/motion/jerk
+
+UDP port: 9000
 ```
 
-If the complete path is working, the Receiver computer should continuously display changing values such as:
+If the complete path is working, the Receiver computer should continuously display complete snapshots such as:
 
-如果整條資料鏈正常，接收端應持續看到類似：
+如果整條資料鏈正常，接收端應持續看到完整九項資料，例如：
 
 ```text
-/motion/energy 2.183421
-/motion/energy 7.552103
-/motion/energy 15.907332
+energy=11.358 | sync_velocity=0.587 | sync_correlation=0.809 | expansion=0.355 | curvature=0.343 | height=0.175 | sway=0.079 | torque=80.961 | jerk=168370257.298
 ```
 
-Move in front of the camera and confirm that the values change.
+Move in front of the camera and confirm that multiple values change.
 
-在攝影機前移動，確認數值會隨動作改變。
+在攝影機前移動，確認多個數值會隨動作改變。
 
 ### Success criterion / 成功標準
 
@@ -381,9 +397,9 @@ Ethernet or LAN
 Receiver
 ```
 
-If changing `/motion/energy` values appear on Computer B, the v0.1 cross-computer pipeline is working.
+If complete nine-metric snapshots appear on Computer B and change with movement, the v0.2 cross-computer pipeline is working.
 
-只要電腦 B 能看到持續變化的 `/motion/energy`，就代表 v0.1 的跨電腦資料傳輸成功。
+只要電腦 B 能看到完整九項資料，而且數值會隨動作變化，就代表 v0.2 的跨電腦資料傳輸成功。
 
 ## Initial Development Plan / 初始開發計畫
 
@@ -415,9 +431,9 @@ Completed:
 - 外部 Python client 已成功讀取 `/ws/metrics`。
 - 兩台開發電腦之間的獨立 Ethernet 連線已測試成功。
 
-The minimal Sender and Receiver have now been implemented. The next milestone is to verify the v0.1 pipeline across the dedicated Ethernet link.
+The v0.1 single-metric Ethernet test has been completed successfully. The Sender and Receiver now support all nine current motion metrics.
 
-最小版 Sender 與 Receiver 已建立。下一個 milestone 是在獨立 Ethernet 連線上完成實際跨電腦驗證。
+v0.1 的單一 metric Ethernet 跨電腦測試已成功完成。現在 Sender 與 Receiver 已擴充為支援目前全部九個 motion metrics。
 
 ## Repository Scope / Repository 範圍
 

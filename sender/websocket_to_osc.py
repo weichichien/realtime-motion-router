@@ -1,8 +1,9 @@
 """WebSocket -> OSC sender for Realtime Motion Router.
 
 Milestone v0.3:
-- Read WebSocket source and OSC target from config/config.json.
+- Read motion source and OSC output settings from config/config.json.
 - Forward all nine current motion metrics as OSC messages.
+- Use the final-oriented config schema prepared for future multi-target routing.
 """
 
 import argparse
@@ -54,23 +55,34 @@ def load_config(config_path):
         config = json.load(file)
 
     try:
-        source = config["source"]["websocket_url"]
-        target = config["sender"]["target_ip"]
-        port = int(config["sender"]["target_port"])
+        source = config["motion_source"]["websocket_url"]
+        outputs = config["osc_outputs"]
+
+        if not isinstance(outputs, list) or not outputs:
+            raise ValueError("osc_outputs must contain at least one destination.")
+
+        output = outputs[0]
+        output_name = str(output.get("name", "OSC receiver"))
+        destination_ip = str(output["destination_ip"])
+        destination_port = int(output["destination_port"])
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(
             "Invalid configuration. Required fields: "
-            "source.websocket_url, sender.target_ip, sender.target_port"
+            "motion_source.websocket_url and at least one osc_outputs item with "
+            "destination_ip and destination_port. "
+            "If your config still uses source/sender/receiver, recreate it from "
+            "config/config.example.json."
         ) from error
 
-    return source, target, port
+    return source, output_name, destination_ip, destination_port
 
 
-async def forward_metrics(source, target, port):
-    osc_client = SimpleUDPClient(target, port)
+async def forward_metrics(source, output_name, destination_ip, destination_port):
+    osc_client = SimpleUDPClient(destination_ip, destination_port)
 
-    print(f"WebSocket source: {source}")
-    print(f"OSC target:       {target}:{port}")
+    print(f"Motion source:     {source}")
+    print(f"OSC output:        {output_name}")
+    print(f"Destination:       {destination_ip}:{destination_port}")
     print("OSC addresses:")
     for metric_name in METRIC_NAMES:
         print(f"  /motion/{metric_name}")
@@ -111,8 +123,8 @@ async def forward_metrics(source, target, port):
 
 async def main():
     args = parse_args()
-    source, target, port = load_config(args.config)
-    await forward_metrics(source, target, port)
+    source, output_name, destination_ip, destination_port = load_config(args.config)
+    await forward_metrics(source, output_name, destination_ip, destination_port)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 # Configuration / 設定
 
-Version v0.3 moves network settings out of the Python source code.
+Version v0.3 moves network settings out of the Python source code and uses names intended to stay understandable for non-network-specialist users.
 
-v0.3 開始把網路設定移出 Python 程式碼，使用者不需要修改 Sender / Receiver 原始碼。
+v0.3 把網路設定移出 Python 程式碼，並改用一般使用者比較容易理解的命名。
 
 ## First setup / 第一次設定
 
@@ -30,62 +30,134 @@ Then edit `config/config.json`.
 
 `config/config.json` 不會被 Git 追蹤，因此每台電腦可以保存自己的 IP / port 設定，不會因為不同電腦的網路設定造成 Git conflict。
 
-## Fields / 欄位
+## Current schema / 目前格式
 
 ```json
 {
-  "source": {
+  "motion_source": {
     "websocket_url": "ws://127.0.0.1:8000/ws/metrics"
   },
-  "sender": {
-    "target_ip": "192.168.50.20",
-    "target_port": 9000
-  },
-  "receiver": {
-    "listen_host": "0.0.0.0",
+  "osc_outputs": [
+    {
+      "name": "Mac receiver",
+      "destination_ip": "192.168.50.20",
+      "destination_port": 9000
+    }
+  ],
+  "osc_receiver": {
+    "listen_interface": "all",
     "listen_port": 9000
   }
 }
 ```
 
-- `source.websocket_url`: WebSocket source provided by the motion-analysis application / 動作分析程式提供的 WebSocket 位址。
-- `sender.target_ip`: IP address of the receiving computer / 接收端電腦的 IP。
-- `sender.target_port`: UDP port used by the Sender / Sender 要送到的 UDP port。
-- `receiver.listen_host`: Local interface used by the Receiver. Keep `0.0.0.0` unless there is a specific reason to bind one interface / Receiver 的監聽介面，一般保持 `0.0.0.0`。
-- `receiver.listen_port`: UDP port used by the Receiver / Receiver 監聽的 UDP port。
+### `motion_source`
 
-The Sender target port and Receiver listen port must match.
+Where motion data comes from.
 
-Sender 的 `target_port` 與 Receiver 的 `listen_port` 必須一致。
+動作分析資料從哪裡來。
+
+- `websocket_url`: WebSocket endpoint provided by the motion-analysis application / 動作分析程式提供的 WebSocket 位址。
+
+### `osc_outputs`
+
+Where this computer sends OSC data.
+
+這台電腦要把 OSC 資料送到哪裡。
+
+- `name`: Human-readable label for the destination / 給人看的名稱。
+- `destination_ip`: **IP address of the receiving computer** / **接收資料的對方電腦 IP**。
+- `destination_port`: UDP port on that receiving computer / 對方接收 OSC 的 UDP port。
+
+The name `destination_ip` is deliberate: it is not the Sender computer's own IP.
+
+`destination_ip` 這個命名是刻意的：它不是 Sender 自己的 IP，而是「資料要送到的目的地 IP」。
+
+`osc_outputs` is already a list so the config format does not need to change again when multi-target routing is implemented. In v0.3, the Sender uses the first item only.
+
+`osc_outputs` 現在就使用 list，因此未來加入 multi-target 時不需要再改 config 格式。v0.3 Sender 暫時只使用第一個項目。
+
+### `osc_receiver`
+
+How this computer listens for incoming OSC.
+
+這台電腦如果要當 Receiver，要如何接收 OSC。
+
+- `listen_interface: "all"`: listen on all local network interfaces / 在這台電腦所有本機網路介面接收。
+- `listen_port`: local UDP port used by the Receiver / Receiver 使用的本機 UDP port。
+
+For normal use, keep:
+
+一般使用時請維持：
+
+```json
+"listen_interface": "all"
+```
+
+The program converts `"all"` internally to the socket bind address `0.0.0.0`. Users therefore do not need to configure or understand `0.0.0.0`.
+
+程式會在內部把 `"all"` 轉換成 socket bind address `0.0.0.0`，一般使用者不需要直接設定或理解 `0.0.0.0`。
+
+If there is a specific technical reason to bind only one local interface, `listen_interface` may instead contain **this Receiver computer's own local IP address**.
+
+只有在確實需要綁定特定網路介面時，`listen_interface` 才需要改成 **Receiver 這台電腦自己的本機 IP**。
+
+## Sender and Receiver use different sections / Sender 與 Receiver 讀不同區塊
+
+The same repository can run either role:
+
+同一個 repository 可以執行兩種角色：
+
+- Sender reads `motion_source` + `osc_outputs`.
+- Receiver reads `osc_receiver`.
+
+- Sender 讀取 `motion_source` + `osc_outputs`。
+- Receiver 讀取 `osc_receiver`。
+
+This is why a computer running only the Sender still has an `osc_receiver` section in its local config, and vice versa. Unused sections are simply ignored by that program.
+
+因此即使某台電腦目前只跑 Sender，它的 config 中仍會看到 `osc_receiver`；反過來亦然。該程式不使用的區塊會直接忽略。
+
+## Port matching / Port 必須一致
+
+The selected output's `destination_port` must match the receiving computer's `osc_receiver.listen_port`.
+
+Sender 使用的 `destination_port` 必須與接收端電腦的 `osc_receiver.listen_port` 一致。
+
+Example:
+
+```text
+Windows Sender                         Mac Receiver
+192.168.50.10                         192.168.50.20
+
+osc_outputs[0].destination_ip ------> 192.168.50.20
+osc_outputs[0].destination_port ----> 9000
+                                      osc_receiver.listen_interface = "all"
+                                      osc_receiver.listen_port      = 9000
+```
 
 ## Long-term configuration model / 正式版本的設定原則
 
-The v0.3 configuration mechanism is not a temporary testing workaround. It is the intended configuration model for the project.
+This configuration mechanism is intended to remain in the final system:
 
-v0.3 的 config 機制不是暫時測試用的 workaround，而是本專案預計沿用到正式版本的設定方式。
+這套 config 機制預計會延續到正式版本：
 
-The stable parts are:
-
-- Keep IP addresses and ports outside Python source code.
-- Track `config.example.json` in Git.
-- Keep each machine's `config.json` local and ignored by Git.
-- Use the same mechanism for Wi-Fi development and dedicated-Ethernet performance setups.
-- Let each subproject maintain its own local network values without changing shared source code.
-
-會維持不變的原則：
+- IP addresses and ports stay outside Python source code.
+- `config.example.json` is tracked by Git.
+- Each machine keeps its own `config.json`, ignored by Git.
+- Wi-Fi development and dedicated-Ethernet performance setups use the same configuration mechanism.
+- `osc_outputs` is already structured for multiple destinations.
+- Users should change network values in config, not modify Sender / Receiver source code.
 
 - IP 與 port 不寫死在 Python source code。
 - Git 中保留 `config.example.json`。
 - 每台電腦自己的 `config.json` 留在本機，不進 Git。
-- 開發時用 Wi-Fi、展演時用 dedicated Ethernet，都沿用相同設定機制。
-- 各子計畫只修改自己的網路參數，不需要修改共用程式碼。
+- Wi-Fi 開發與 dedicated Ethernet 展演都使用同一套設定機制。
+- `osc_outputs` 已經預留多個 destination 的結構。
+- 使用者更換網路設定時只修改 config，不修改 Sender / Receiver 程式碼。
 
-The only planned schema change is the Sender destination section. v0.3 has one target; a later multi-target version will represent destinations as a list. Users will still configure targets in `config/config.json`.
+## Current v0.3 limitation / 目前 v0.3 限制
 
-唯一預計會再調整的是 Sender 的目的地格式：v0.3 只有一個 target；之後 multi-target 版本會改成 target list。但使用者仍然只需要在 `config/config.json` 設定。
+The config can describe multiple `osc_outputs`, but the v0.3 Sender transmits only to the first item. Multi-target transmission is the next routing milestone.
 
-## Current limitation / 目前限制
-
-v0.3 supports one OSC target. Multiple receivers will be added in a later version.
-
-v0.3 先支援一個 OSC target；多接收端會在後續版本加入。
+config 已經可以描述多個 `osc_outputs`，但 v0.3 Sender 目前只會傳送到第一個。真正同時送往多個 destination 是下一個 routing milestone。

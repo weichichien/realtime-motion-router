@@ -1,9 +1,8 @@
-"""Minimal WebSocket -> OSC sender for Realtime Motion Router.
+"""WebSocket -> OSC sender for Realtime Motion Router.
 
-Milestone v0.1:
+Milestone v0.2:
 - Read /ws/metrics JSON from realtime-dance-analysis.
-- Extract only the "energy" metric.
-- Send it as OSC address /motion/energy.
+- Forward all nine current motion metrics as OSC messages.
 """
 
 import argparse
@@ -14,9 +13,22 @@ import websockets
 from pythonosc.udp_client import SimpleUDPClient
 
 
+METRIC_NAMES = (
+    "energy",
+    "sync_velocity",
+    "sync_correlation",
+    "expansion",
+    "curvature",
+    "height",
+    "sway",
+    "torque",
+    "jerk",
+)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Forward the energy metric from a WebSocket source to an OSC receiver."
+        description="Forward motion metrics from a WebSocket source to an OSC receiver."
     )
     parser.add_argument(
         "--source",
@@ -37,12 +49,14 @@ def parse_args():
     return parser.parse_args()
 
 
-async def forward_energy(source, target, port):
+async def forward_metrics(source, target, port):
     osc_client = SimpleUDPClient(target, port)
 
     print(f"WebSocket source: {source}")
     print(f"OSC target:       {target}:{port}")
-    print("OSC address:      /motion/energy")
+    print("OSC addresses:")
+    for metric_name in METRIC_NAMES:
+        print(f"  /motion/{metric_name}")
     print("Connecting...")
 
     async with websockets.connect(source) as websocket:
@@ -54,22 +68,33 @@ async def forward_energy(source, target, port):
             except json.JSONDecodeError:
                 continue
 
-            energy = metrics.get("energy")
-            if energy is None:
-                continue
+            sent_values = {}
 
-            try:
-                energy = float(energy)
-            except (TypeError, ValueError):
-                continue
+            for metric_name in METRIC_NAMES:
+                value = metrics.get(metric_name)
+                if value is None:
+                    continue
 
-            osc_client.send_message("/motion/energy", energy)
-            print(f"\rSent /motion/energy {energy:.6f}", end="", flush=True)
+                try:
+                    value = float(value)
+                except (TypeError, ValueError):
+                    continue
+
+                osc_client.send_message(f"/motion/{metric_name}", value)
+                sent_values[metric_name] = value
+
+            if sent_values:
+                summary = " | ".join(
+                    f"{name}={sent_values[name]:.3f}"
+                    for name in METRIC_NAMES
+                    if name in sent_values
+                )
+                print(f"\rSent {summary}", end="", flush=True)
 
 
 async def main():
     args = parse_args()
-    await forward_energy(args.source, args.target, args.port)
+    await forward_metrics(args.source, args.target, args.port)
 
 
 if __name__ == "__main__":

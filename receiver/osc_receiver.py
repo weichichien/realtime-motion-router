@@ -1,7 +1,8 @@
 """OSC receiver for Realtime Motion Router.
 
 Milestone v0.3:
-- Read receiver listen host and port from config/config.json.
+- Read OSC receiver settings from config/config.json.
+- Hide socket-specific 0.0.0.0 behind listen_interface = "all".
 - Listen for the nine current motion metrics over OSC/UDP.
 - Print one complete metric snapshot after each received jerk value.
 """
@@ -55,15 +56,24 @@ def load_config(config_path):
         config = json.load(file)
 
     try:
-        host = config["receiver"]["listen_host"]
-        port = int(config["receiver"]["listen_port"])
+        listen_interface = str(config["osc_receiver"]["listen_interface"])
+        listen_port = int(config["osc_receiver"]["listen_port"])
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(
             "Invalid configuration. Required fields: "
-            "receiver.listen_host, receiver.listen_port"
+            "osc_receiver.listen_interface and osc_receiver.listen_port. "
+            "If your config still uses source/sender/receiver, recreate it from "
+            "config/config.example.json."
         ) from error
 
-    return host, port
+    if listen_interface.lower() == "all":
+        bind_host = "0.0.0.0"
+        display_interface = "all interfaces"
+    else:
+        bind_host = listen_interface
+        display_interface = listen_interface
+
+    return bind_host, display_interface, listen_port
 
 
 def receive_metric(address, *values):
@@ -90,15 +100,15 @@ def receive_metric(address, *values):
 
 def main():
     args = parse_args()
-    host, port = load_config(args.config)
+    bind_host, display_interface, listen_port = load_config(args.config)
 
     dispatcher = Dispatcher()
     for metric_name in METRIC_NAMES:
         dispatcher.map(f"/motion/{metric_name}", receive_metric)
 
-    server = ThreadingOSCUDPServer((host, port), dispatcher)
+    server = ThreadingOSCUDPServer((bind_host, listen_port), dispatcher)
 
-    print(f"Listening for OSC on {host}:{port}")
+    print(f"Listening for OSC on {display_interface}, port {listen_port}")
     print("Expected addresses:")
     for metric_name in METRIC_NAMES:
         print(f"  /motion/{metric_name}")

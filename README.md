@@ -261,6 +261,7 @@ realtime-motion-router/
 ├─ receiver/
 │  └─ osc_receiver.py
 ├─ config/
+│  ├─ config.example.json
 │  └─ README.md
 ├─ requirements.txt
 ├─ .gitignore
@@ -269,14 +270,14 @@ realtime-motion-router/
 
 - `sender/`: reads motion metrics and sends OSC / 讀取 motion metrics 並送出 OSC。
 - `receiver/`: reference receiver for testing and diagnostics / 標準接收端測試與除錯工具。
-- `config/`: reserved for future network and target configuration / 預留未來網路與 target 設定。
+- `config/`: network and target configuration / 網路與 target 設定。`config.example.json` 可提交，個別電腦使用的 `config.json` 不會被 Git 追蹤。
 - `requirements.txt`: shared Python dependencies / Sender 與 Receiver 共用的 Python 套件需求。
 
-## Minimal v0.2 Test / 最小版跨電腦測試
+## Minimal v0.3 Test / 最小版跨電腦測試
 
-The current minimal implementation sends all nine motion metrics as separate OSC addresses.
+The current implementation sends all nine motion metrics as separate OSC addresses and reads network settings from `config/config.json`.
 
-目前最小版本會把九個 motion metrics 分別以獨立 OSC address 傳送。
+目前版本會把九個 motion metrics 分別以獨立 OSC address 傳送，並從 `config/config.json` 讀取網路設定。
 
 ### Install dependencies / 安裝套件
 
@@ -296,16 +297,58 @@ On macOS, use `python3` instead of `python` if that is how Python is installed.
 python3 -m pip install -r requirements.txt
 ```
 
+### Create local configuration / 建立本機設定檔
+
+After pulling the repository, copy the example configuration once on **each computer**.
+
+每台電腦第一次設定時，都要先複製一份本機設定檔。
+
+Windows PowerShell:
+
+```powershell
+Copy-Item config/config.example.json config/config.json
+```
+
+macOS / Linux:
+
+```bash
+cp config/config.example.json config/config.json
+```
+
+Then edit `config/config.json`. For the current two-computer Ethernet test:
+
+接著修改 `config/config.json`。目前兩台電腦 Ethernet 測試可使用：
+
+```json
+{
+  "source": {
+    "websocket_url": "ws://127.0.0.1:8000/ws/metrics"
+  },
+  "sender": {
+    "target_ip": "192.168.50.20",
+    "target_port": 9000
+  },
+  "receiver": {
+    "listen_host": "0.0.0.0",
+    "listen_port": 9000
+  }
+}
+```
+
+The local `config/config.json` is ignored by Git. This prevents different computers' IP settings from creating Git conflicts.
+
+本機的 `config/config.json` 不會被 Git 追蹤，因此不同電腦可以保留自己的 IP / port 設定，不會造成 Git conflict。
+
 ### Computer B: start Receiver first / 電腦 B：先啟動 Receiver
 
 ```bash
-python receiver/osc_receiver.py --port 9000
+python receiver/osc_receiver.py
 ```
 
 macOS:
 
 ```bash
-python3 receiver/osc_receiver.py --port 9000
+python3 receiver/osc_receiver.py
 ```
 
 Expected startup message / 預期畫面：
@@ -333,25 +376,21 @@ Start `realtime-dance-analysis` and confirm that the dashboard shows changing li
 
 ### Computer A: start Sender / 電腦 A：啟動 Sender
 
-Replace `192.168.50.20` with the Receiver computer's actual Ethernet or LAN IP address.
+Set the Receiver computer's actual Ethernet or LAN IP in `config/config.json`, then start the Sender:
 
-請把 `192.168.50.20` 換成接收端電腦實際的 Ethernet 或 LAN IP。
+先在 `config/config.json` 設定接收端電腦實際的 Ethernet 或 LAN IP，再啟動 Sender：
 
 ```bash
-python sender/websocket_to_osc.py --target 192.168.50.20 --port 9000
+python sender/websocket_to_osc.py
 ```
 
-The Sender uses this WebSocket source by default:
+The Sender reads the WebSocket source, target IP, and target port from `config/config.json`.
 
-Sender 預設讀取：
+Sender 會從 `config/config.json` 讀取 WebSocket source、target IP 與 target port。
 
-```text
-ws://127.0.0.1:8000/ws/metrics
-```
+It sends:
 
-and sends:
-
-並送出：
+送出：
 
 ```text
 /motion/energy
@@ -397,9 +436,9 @@ Ethernet or LAN
 Receiver
 ```
 
-If complete nine-metric snapshots appear on Computer B and change with movement, the v0.2 cross-computer pipeline is working.
+If complete nine-metric snapshots appear on Computer B and change with movement, the v0.3 cross-computer pipeline is working.
 
-只要電腦 B 能看到完整九項資料，而且數值會隨動作變化，就代表 v0.2 的跨電腦資料傳輸成功。
+只要電腦 B 能看到完整九項資料，而且數值會隨動作變化，就代表 v0.3 的跨電腦資料傳輸成功。
 
 ## Initial Development Plan / 初始開發計畫
 
@@ -431,9 +470,9 @@ Completed:
 - 外部 Python client 已成功讀取 `/ws/metrics`。
 - 兩台開發電腦之間的獨立 Ethernet 連線已測試成功。
 
-The v0.1 single-metric Ethernet test has been completed successfully. The Sender and Receiver now support all nine current motion metrics.
+The v0.2 nine-metric Ethernet test has been completed successfully. v0.3 moves the WebSocket source, OSC target IP/port, and Receiver listen settings into a local configuration file.
 
-v0.1 的單一 metric Ethernet 跨電腦測試已成功完成。現在 Sender 與 Receiver 已擴充為支援目前全部九個 motion metrics。
+v0.2 的九項 metric Ethernet 跨電腦測試已成功完成。v0.3 將 WebSocket source、OSC target IP/port 與 Receiver listen 設定移到本機設定檔。
 
 ## Repository Scope / Repository 範圍
 

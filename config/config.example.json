@@ -1,13 +1,16 @@
 {
-  "source": {
+  "motion_source": {
     "websocket_url": "ws://127.0.0.1:8000/ws/metrics"
   },
-  "sender": {
-    "target_ip": "192.168.50.20",
-    "target_port": 9000
-  },
-  "receiver": {
-    "listen_host": "0.0.0.0",
+  "osc_outputs": [
+    {
+      "name": "Mac receiver",
+      "destination_ip": "192.168.50.20",
+      "destination_port": 9000
+    }
+  ],
+  "osc_receiver": {
+    "listen_interface": "all",
     "listen_port": 9000
   }
 }

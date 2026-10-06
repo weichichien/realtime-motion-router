@@ -1,8 +1,8 @@
 # Configuration / 設定
 
-Version v0.3 moves network settings out of the Python source code and uses names intended to stay understandable for non-network-specialist users.
+Version v0.4 keeps the v0.3 configuration model and adds real multi-target OSC transmission. Every item in `osc_outputs` is now active.
 
-v0.3 把網路設定移出 Python 程式碼，並改用一般使用者比較容易理解的命名。
+v0.4 延續 v0.3 的設定方式，並正式加入 multi-target OSC 傳送。`osc_outputs` 中的每一個項目現在都會實際收到資料。
 
 ## First setup / 第一次設定
 
@@ -42,6 +42,11 @@ Then edit `config/config.json`.
       "name": "Mac receiver",
       "destination_ip": "192.168.50.20",
       "destination_port": 9000
+    },
+    {
+      "name": "Project B receiver",
+      "destination_ip": "192.168.50.30",
+      "destination_port": 9000
     }
   ],
   "osc_receiver": {
@@ -73,9 +78,9 @@ The name `destination_ip` is deliberate: it is not the Sender computer's own IP.
 
 `destination_ip` 這個命名是刻意的：它不是 Sender 自己的 IP，而是「資料要送到的目的地 IP」。
 
-`osc_outputs` is already a list so the config format does not need to change again when multi-target routing is implemented. In v0.3, the Sender uses the first item only.
+`osc_outputs` is a list of active destinations. In v0.4, the Sender creates one OSC client per item and sends every available motion metric to every configured destination.
 
-`osc_outputs` 現在就使用 list，因此未來加入 multi-target 時不需要再改 config 格式。v0.3 Sender 暫時只使用第一個項目。
+`osc_outputs` 是實際啟用的目的地清單。v0.4 Sender 會為每一個項目建立 OSC client，並把每一項可用的 motion metric 同時送到所有目的地。
 
 ### `osc_receiver`
 
@@ -156,8 +161,34 @@ This configuration mechanism is intended to remain in the final system:
 - `osc_outputs` 已經預留多個 destination 的結構。
 - 使用者更換網路設定時只修改 config，不修改 Sender / Receiver 程式碼。
 
-## Current v0.3 limitation / 目前 v0.3 限制
+## Multi-target behavior / Multi-target 行為
 
-The config can describe multiple `osc_outputs`, but the v0.3 Sender transmits only to the first item. Multi-target transmission is the next routing milestone.
+In v0.4, every item in `osc_outputs` is active. To add another receiver, add another object to the list. No Python source-code change is required.
 
-config 已經可以描述多個 `osc_outputs`，但 v0.3 Sender 目前只會傳送到第一個。真正同時送往多個 destination 是下一個 routing milestone。
+v0.4 中，`osc_outputs` 裡的每一個項目都會啟用。若要增加接收端，只要在 list 中新增一個 object，不需要修改 Python 程式。
+
+Example:
+
+```json
+"osc_outputs": [
+  {
+    "name": "Mac receiver",
+    "destination_ip": "192.168.50.20",
+    "destination_port": 9000
+  },
+  {
+    "name": "Visual computer",
+    "destination_ip": "192.168.50.30",
+    "destination_port": 9000
+  },
+  {
+    "name": "AI computer",
+    "destination_ip": "192.168.50.40",
+    "destination_port": 9000
+  }
+]
+```
+
+Each receiver remains independent. One receiver does not relay data to the others.
+
+每個 Receiver 都是獨立的，不需要由其中一台再轉送給其他電腦。

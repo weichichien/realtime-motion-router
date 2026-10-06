@@ -339,6 +339,35 @@ The local `config/config.json` is ignored by Git. This prevents different comput
 
 本機的 `config/config.json` 不會被 Git 追蹤，因此不同電腦可以保留自己的 IP / port 設定，不會造成 Git conflict。
 
+### Configuration design toward the final system / 與正式版本一致的設定方式
+
+The **configuration approach introduced in v0.3 is intended to remain in the final system**:
+
+v0.3 開始採用的 **設定方式會延續到正式版本**：
+
+- Network addresses and ports are stored in `config/config.json`, not hard-coded in Python.
+- `config/config.example.json` is tracked by Git as a template.
+- Each computer keeps its own `config/config.json`, which is ignored by Git.
+- The motion-data source, Sender destinations, and Receiver listening settings remain separate concepts.
+- For performance use, the same configuration mechanism can be used with a dedicated Ethernet LAN and fixed/private IP addresses.
+
+- IP、port 等網路參數放在 `config/config.json`，不寫死在 Python 程式裡。
+- `config/config.example.json` 會由 Git 管理，作為所有人的範例。
+- 每台電腦保留自己的 `config/config.json`，且不會被 Git 追蹤。
+- motion-data source、Sender 的傳送目的地、Receiver 的監聽設定會維持分離。
+- 正式展演使用 dedicated Ethernet 與固定/private IP 時，仍然使用同一套 config 機制。
+
+**One detail is still temporary in v0.3:** the current `sender` section contains only one `target_ip` and `target_port`. When multi-target routing is added, this part will become a list of targets. The overall configuration workflow will not change.
+
+**目前只有一個細節仍是暫時的：** v0.3 的 `sender` 只有一組 `target_ip` / `target_port`。加入 multi-target 後，這一段會改成 target list；但「只修改 config、不修改程式碼」的使用方式不會改變。
+
+For students and subprojects, the practical rule is:
+
+對學生與各子計畫而言，可以直接記住：
+
+> **Change network settings in `config/config.json`; do not edit Sender/Receiver Python files just to change IP addresses or ports.**  
+> **需要換 IP 或 port 時，只改 `config/config.json`，不要為了網路設定去修改 Sender / Receiver 的 Python 程式。**
+
 ### Computer B: start Receiver first / 電腦 B：先啟動 Receiver
 
 ```bash

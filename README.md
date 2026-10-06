@@ -273,11 +273,11 @@ realtime-motion-router/
 - `config/`: network and target configuration / 網路與 target 設定。`config.example.json` 可提交，個別電腦使用的 `config.json` 不會被 Git 追蹤。
 - `requirements.txt`: shared Python dependencies / Sender 與 Receiver 共用的 Python 套件需求。
 
-## Minimal v0.3 Test / 最小版跨電腦測試
+## Minimal v0.4 Test / 最小版跨電腦測試
 
-The current implementation sends all nine motion metrics as separate OSC addresses and reads network settings from `config/config.json`.
+The current implementation sends all nine motion metrics as separate OSC addresses to every destination listed in `config/config.json`.
 
-目前版本會把九個 motion metrics 分別以獨立 OSC address 傳送，並從 `config/config.json` 讀取網路設定。
+目前版本會把九個 motion metrics 分別以獨立 OSC address，同時傳送到 `config/config.json` 中列出的所有目的地。
 
 ### Install dependencies / 安裝套件
 
@@ -329,6 +329,11 @@ Then edit `config/config.json`. For the current two-computer Ethernet test:
       "name": "Mac receiver",
       "destination_ip": "192.168.50.20",
       "destination_port": 9000
+    },
+    {
+      "name": "Project B receiver",
+      "destination_ip": "192.168.50.30",
+      "destination_port": 9000
     }
   ],
   "osc_receiver": {
@@ -364,9 +369,9 @@ v0.3 開始採用的 **設定方式會延續到正式版本**：
 - 一般使用者只需要使用 `listen_interface: "all"`，不需要理解 socket 的 `0.0.0.0`。
 - 正式展演使用 dedicated Ethernet 與固定/private IP 時，仍然使用同一套 config 機制。
 
-The config schema is now prepared for multi-target routing: `osc_outputs` is already a list. In v0.3, the Sender uses the first item only. A later version will send to every enabled output without requiring another config-format change.
+In v0.4, `osc_outputs` is an active multi-target list. The Sender creates one OSC client per destination and fans every metric out to all configured receivers. Adding a receiver requires only another config entry; no Python edit is needed.
 
-目前 config schema 已經預先採用 multi-target 結構：`osc_outputs` 本身就是 list。v0.3 Sender 暫時只使用第一個項目；之後只需要擴充 Sender 讓它送到所有 output，不必再次修改 config 格式。
+v0.4 中，`osc_outputs` 已經是實際運作的 multi-target 清單。Sender 會為每個 destination 建立 OSC client，並把每項 metric 同時送給所有接收端。增加 Receiver 時只需要新增 config 項目，不需要修改 Python。
 
 For students and subprojects, the practical rule is:
 
@@ -420,9 +425,9 @@ Set the receiving computer's Ethernet or LAN IP as `osc_outputs[].destination_ip
 python sender/websocket_to_osc.py
 ```
 
-The Sender reads `motion_source.websocket_url` and the first `osc_outputs` destination from `config/config.json`.
+The Sender reads `motion_source.websocket_url` and every destination in `osc_outputs` from `config/config.json`.
 
-Sender 會從 `config/config.json` 讀取 `motion_source.websocket_url` 與第一個 `osc_outputs` destination。
+Sender 會從 `config/config.json` 讀取 `motion_source.websocket_url`，以及 `osc_outputs` 中的所有 destination。
 
 It sends:
 
@@ -472,9 +477,9 @@ Ethernet or LAN
 Receiver
 ```
 
-If complete nine-metric snapshots appear on Computer B and change with movement, the v0.3 cross-computer pipeline is working.
+If complete nine-metric snapshots appear on every configured receiver and change with movement, the v0.4 multi-target pipeline is working.
 
-只要電腦 B 能看到完整九項資料，而且數值會隨動作變化，就代表 v0.3 的跨電腦資料傳輸成功。
+只要所有已設定的 Receiver 都能看到完整九項資料，而且數值會隨動作變化，就代表 v0.4 multi-target 資料傳輸成功。
 
 ## Initial Development Plan / 初始開發計畫
 
@@ -483,7 +488,7 @@ If complete nine-metric snapshots appear on Computer B and change with movement,
 3. Send one metric over OSC/UDP to a second computer.
 4. Send the complete metric frame.
 5. Move destination addresses and ports into configuration.
-6. Support multiple OSC targets.
+6. Support multiple OSC targets. **Completed in v0.4.**
 7. Add timestamps / sequence IDs for diagnostics.
 8. Add optional logging and connection-status reporting.
 9. Evaluate additional input and output protocols if needed.
@@ -506,9 +511,9 @@ Completed:
 - 外部 Python client 已成功讀取 `/ws/metrics`。
 - 兩台開發電腦之間的獨立 Ethernet 連線已測試成功。
 
-The v0.2 nine-metric Ethernet test has been completed successfully. v0.3 moves the WebSocket source, OSC destinations, and local Receiver settings into a clearer final-oriented configuration schema.
+The v0.2 nine-metric Ethernet test and v0.3 configuration milestone have been completed successfully. v0.4 adds real multi-target fan-out: one Sender can now transmit the same nine metrics directly to multiple independent OSC receivers.
 
-v0.2 的九項 metric Ethernet 跨電腦測試已成功完成。v0.3 將 WebSocket source、OSC destinations 與本機 Receiver 設定移到較清楚、可直接延續到正式版本的 config schema。
+v0.2 的九項 metric Ethernet 跨電腦測試與 v0.3 config milestone 已完成。v0.4 正式加入 multi-target fan-out：一個 Sender 現在可以把相同九項 metrics 直接傳送給多台彼此獨立的 OSC Receiver。
 
 ## Repository Scope / Repository 範圍
 

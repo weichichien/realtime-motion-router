@@ -768,3 +768,23 @@ This separation makes it possible to use future sources such as Kinect or other 
 This project is released under the MIT License. See [LICENSE](LICENSE).
 
 本專案採用 MIT License。詳細內容請參考 [LICENSE](LICENSE)。
+
+
+## AI Punk Studio WebSocket v1 integration / 新版骨架辨識串流對接
+
+This branch supports [AI Punk Studio](https://github.com/YukiHataRin/ai-punk-studio) WebSocket protocol v1 **and** the original flat `/ws/metrics` JSON messages. The v0.4 instructions elsewhere in this README document the original application; use this section for the newer Studio source.
+
+本分支同時支援新版 AI Punk Studio WebSocket v1 與舊版平面 JSON 指標。README 其他 v0.4 說明保留舊版歷史紀錄；新版系統請依本節設定。
+
+- New source: `ws://<dance-computer-ip>:8765`. The AI Punk Studio WebSocket server must be enabled and listen on the LAN interface (for CLI/headless use `--ws-host 0.0.0.0`); the source computer's firewall must allow TCP 8765. Use a trusted, private Ethernet LAN because Studio's WebSocket has no authentication or encryption.
+- 新版來源：`ws://<舞者電腦IP>:8765`。舞者電腦須啟用 WebSocket 並允許區網連入（命令列可使用 `--ws-host 0.0.0.0`），且防火牆須開放 TCP 8765。此 WebSocket 無認證／加密，請使用可信任的封閉網段。
+- The Sender ignores `hello`/`pong`, reads one dancer from each `frame.people[0].metrics`, skips empty frames or unavailable/non-finite values, and forwards valid scalar values to the existing nine `/motion/<metric>` OSC addresses. It retries the WebSocket connection 2 seconds after disconnect or connection failure. With no valid dancer data it sends nothing; downstream controls may retain their last values.
+- Sender 會忽略 `hello`／`pong`，從 `frame.people[0].metrics` 取唯一舞者的九項指標；略過空幀與無效數值，維持原有 OSC 位址及多目的地傳送；連線失敗或中斷後每隔 2 秒重試。沒有有效數據時不傳送 OSC，接收端可能保留先前的數值。
+- To run the Router on the AI PUNK Mac alongside `motion_to_CC_GUI.py`, configure the source as the dancer computer's LAN IP and the OSC target as `127.0.0.1:9010`. `config/config.example.json` now illustrates this setup. If the Router runs on the dancer's computer instead, the source may be `ws://127.0.0.1:8765` and the destination must be the Mac's LAN IP on UDP 9010.
+- Router 若與 `motion_to_CC_GUI.py` 同在 AI PUNK Mac 上執行：WebSocket 來源為舞者電腦的區網 IP；OSC 目的地為 `127.0.0.1:9010`。若 Router 放在舞者電腦，WebSocket 來源可用 `ws://127.0.0.1:8765`，但 OSC 目的地須使用 Mac 的區網 IP、UDP 9010。
+- `config/config.json` is machine-local and Git-ignored. Copy the example, then replace the sample IP; the example is not an automatically usable network configuration.
+- `config/config.json` 為各機器本機設定、不提交 Git；請複製範例並填入實際 IP。
+
+Test parsing and reconnect logic without a camera: `python -m unittest discover -s tests -v`. This is a unit test, not validation of real motion-data accuracy or a two-computer Ethernet connection.
+
+不需攝影機即可執行解析與重連單元測試：`python -m unittest discover -s tests -v`；此測試不代表完成真實骨架辨識或跨電腦連線驗證。

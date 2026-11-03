@@ -1,21 +1,16 @@
 {
   "motion_source": {
-    "websocket_url": "ws://127.0.0.1:8000/ws/metrics"
+    "websocket_url": "ws://192.168.50.10:8765"
   },
   "osc_outputs": [
     {
-      "name": "Mac receiver",
-      "destination_ip": "192.168.50.20",
-      "destination_port": 9000
-    },
-    {
-      "name": "Project B receiver",
-      "destination_ip": "192.168.50.30",
-      "destination_port": 9000
+      "name": "AI PUNK Mac motion_to_CC",
+      "destination_ip": "127.0.0.1",
+      "destination_port": 9010
     }
   ],
   "osc_receiver": {
     "listen_interface": "all",
-    "listen_port": 9000
+    "listen_port": 9010
   }
 }

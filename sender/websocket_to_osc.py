@@ -1,14 +1,14 @@
 """WebSocket -> OSC sender for Realtime Motion Router.
 
-Milestone v0.4:
-- Read motion source and OSC output settings from config/config.json.
-- Forward all nine current motion metrics as OSC messages.
-- Fan out every metric frame to every configured OSC output.
+Accepts both AI Punk Studio WebSocket protocol v1 (frame.people[0].metrics)
+and the original flat nine-metric JSON format. OSC addresses and multi-target
+fan-out remain unchanged.
 """
 
 import argparse
 import asyncio
 import json
+import math
 from pathlib import Path
 
 import websockets
@@ -28,6 +28,7 @@ METRIC_NAMES = (
 )
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.json"
+RECONNECT_DELAY_SECONDS = 2.0
 
 
 def parse_args():
@@ -115,6 +116,55 @@ def create_osc_outputs(outputs):
     return configured_outputs
 
 
+def extract_metrics(payload):
+    """Return a metric dict from Studio v1 or a legacy flat JSON message.
+
+    Our performance setup has one dancer; take the first tracked person.
+    An empty people list or a detection without skeleton metrics sends nothing.
+    """
+    if not isinstance(payload, dict):
+        return None
+
+    message_type = payload.get("type")
+    if message_type == "frame":
+        people = payload.get("people")
+        if not isinstance(people, list) or not people:
+            return None
+        person = people[0]
+        if not isinstance(person, dict):
+            return None
+        metrics = person.get("metrics")
+        return metrics if isinstance(metrics, dict) else None
+
+    if message_type in ("hello", "pong"):
+        return None
+
+    # Original /ws/metrics endpoint: metric keys are at the JSON top level.
+    return payload if any(name in payload for name in METRIC_NAMES) else None
+
+
+def send_metrics(metrics, outputs):
+    """Fan out finite scalar values to existing OSC addresses; return what was sent."""
+    sent_values = {}
+    for metric_name in METRIC_NAMES:
+        value = metrics.get(metric_name)
+        if value is None or isinstance(value, bool):
+            continue
+
+        try:
+            value = float(value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not math.isfinite(value):
+            continue
+
+        address = f"/motion/{metric_name}"
+        for output in outputs:
+            output["client"].send_message(address, value)
+        sent_values[metric_name] = value
+    return sent_values
+
+
 async def forward_metrics(source, outputs):
     configured_outputs = create_osc_outputs(outputs)
 
@@ -129,47 +179,44 @@ async def forward_metrics(source, outputs):
     print("OSC addresses:")
     for metric_name in METRIC_NAMES:
         print(f"  /motion/{metric_name}")
-    print("Connecting...")
 
-    async with websockets.connect(source) as websocket:
-        print("Connected. Press Ctrl+C to stop.")
+    while True:
+        print("Connecting...")
+        try:
+            async with websockets.connect(source) as websocket:
+                print("Connected. Press Ctrl+C to stop.")
 
-        async for message in websocket:
-            try:
-                metrics = json.loads(message)
-            except json.JSONDecodeError:
-                continue
+                async for message in websocket:
+                    try:
+                        payload = json.loads(message)
+                    except (json.JSONDecodeError, UnicodeError, TypeError):
+                        continue
 
-            sent_values = {}
+                    metrics = extract_metrics(payload)
+                    if metrics is None:
+                        continue
 
-            for metric_name in METRIC_NAMES:
-                value = metrics.get(metric_name)
-                if value is None:
-                    continue
+                    sent_values = send_metrics(metrics, configured_outputs)
+                    if sent_values:
+                        summary = " | ".join(
+                            f"{name}={sent_values[name]:.3f}"
+                            for name in METRIC_NAMES
+                            if name in sent_values
+                        )
+                        print(
+                            f"\rSent to {len(configured_outputs)} output(s): {summary}",
+                            end="",
+                            flush=True,
+                        )
 
-                try:
-                    value = float(value)
-                except (TypeError, ValueError):
-                    continue
+            print(f"\nWebSocket closed; reconnecting in {RECONNECT_DELAY_SECONDS:g}s.")
+        except (OSError, TimeoutError, websockets.exceptions.WebSocketException) as error:
+            print(
+                f"\nWebSocket error: {error}; "
+                f"reconnecting in {RECONNECT_DELAY_SECONDS:g}s."
+            )
 
-                address = f"/motion/{metric_name}"
-                for output in configured_outputs:
-                    output["client"].send_message(address, value)
-
-                sent_values[metric_name] = value
-
-            if sent_values:
-                summary = " | ".join(
-                    f"{name}={sent_values[name]:.3f}"
-                    for name in METRIC_NAMES
-                    if name in sent_values
-                )
-                print(
-                    f"\rSent to {len(configured_outputs)} output(s): {summary}",
-                    end="",
-                    flush=True,
-                )
-
+        await asyncio.sleep(RECONNECT_DELAY_SECONDS)
 
 async def main():
     args = parse_args()

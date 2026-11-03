@@ -192,3 +192,19 @@ Example:
 Each receiver remains independent. One receiver does not relay data to the others.
 
 每個 Receiver 都是獨立的，不需要由其中一台再轉送給其他電腦。
+
+
+## AI Punk Studio v1 / 新版對接設定
+
+The example now illustrates the **Router running on the AI PUNK Mac**, taking the single-dancer WebSocket stream from the remote Studio computer and forwarding OSC locally to `motion_to_CC_GUI.py` on UDP port 9010:
+
+範例改為 **Router 在 AI PUNK Mac 執行**：透過區域網路從舞者電腦接收新版 Studio WebSocket，再以 UDP 9010 將 OSC 送至同一台 Mac 的 `motion_to_CC_GUI.py`。
+
+- `motion_source.websocket_url`: `ws://<dance-computer-ip>:8765` (example uses `192.168.50.10`; replace with actual IP)
+- `osc_outputs[0].destination_ip`: `127.0.0.1` (Mac local loopback)
+- `osc_outputs[0].destination_port`: `9010` (Mac Motion-to-CC Live OSC input)
+- `osc_receiver`: only used if the separate test receiver is launched. Do **not** run the test receiver and Motion-to-CC concurrently on UDP 9010.
+
+Existing v0.4 multi-destination behavior and the old `ws://127.0.0.1:8000/ws/metrics` source remain supported; for the old input, change the URL back in your local `config.json`. LAN WebSocket access on the Studio computer requires enabling its server and binding it to a network-accessible interface (e.g. `--ws-host 0.0.0.0` in headless mode).
+
+本分支保留 v0.4 多目的地及舊版 `/ws/metrics` 平面 JSON 支援；舊來源只需在本機 `config.json` 換回舊 URL。新版舞者電腦需啟用 WebSocket，並允許 LAN 連入（例如 headless 模式用 `--ws-host 0.0.0.0`）。

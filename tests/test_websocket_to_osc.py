@@ -33,12 +33,38 @@ class OSC:
 
 
 class RouterTests(unittest.TestCase):
-    def test_studio_first_person(self):
+    def test_studio_largest_box_not_lowest_id(self):
         frame = {"type": "frame", "people": [
-            {"id": 7, "metrics": {"energy": 2.5, "height": None}},
-            {"id": 8, "metrics": {"energy": 9.5}},
+            {"id": 7, "box": [0, 0, 10, 10],
+             "metrics": {"energy": 2.5, "height": None}},
+            {"id": 8, "box": [0, 0, 20, 20],
+             "metrics": {"energy": 9.5}},
         ]}
-        self.assertEqual(sender.extract_metrics(frame), {"energy": 2.5, "height": None})
+        self.assertEqual(sender.extract_metrics(frame), {"energy": 9.5})
+
+    def test_studio_skips_invalid_boxes_and_metrics(self):
+        frame = {"type": "frame", "people": [
+            {"id": 1, "box": [0, 0, 50, 50]},
+            {"id": 2, "metrics": {"energy": 2.5}},
+            {"id": 3, "box": [0, 0, 40, 40], "metrics": {"energy": None}},
+            {"id": 4, "box": [0, 0, 30, 30], "metrics": {"energy": float("nan")}},
+            {"id": 5, "box": [10, 10, 0, 0], "metrics": {"energy": 20.0}},
+            {"id": 6, "box": [0, 0, 15, 15], "metrics": {"energy": 4.0}},
+        ]}
+        self.assertEqual(sender.extract_metrics(frame), {"energy": 4.0})
+
+    def test_studio_single_person_and_no_qualifying_person(self):
+        person = {"id": 32, "box": [0, 0, 10, 10],
+                  "metrics": {"energy": 1.5}}
+        self.assertEqual(
+            sender.extract_metrics({"type": "frame", "people": [person]}),
+            {"energy": 1.5},
+        )
+        self.assertIsNone(sender.extract_metrics({
+            "type": "frame",
+            "people": [{"id": 1, "box": [0, 0, 10, 10],
+                        "metrics": {"energy": None}}],
+        }))
 
     def test_hello_pong_and_missing_person(self):
         for payload in (

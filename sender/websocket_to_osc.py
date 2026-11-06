@@ -1,6 +1,6 @@
 """WebSocket -> OSC sender for Realtime Motion Router.
 
-Accepts both AI Punk Studio WebSocket protocol v1 (frame.people[0].metrics)
+Accepts both AI Punk Studio WebSocket protocol v1 (largest valid person box)
 and the original flat nine-metric JSON format. OSC addresses and multi-target
 fan-out remain unchanged.
 """
@@ -116,11 +116,53 @@ def create_osc_outputs(outputs):
     return configured_outputs
 
 
+def select_person_by_largest_box(people):
+    """Select the largest person box that contains usable motion metrics."""
+    selected = None
+    largest_area = 0.0
+    for person in people:
+        if not isinstance(person, dict):
+            continue
+        metrics = person.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        has_metric = False
+        for name in METRIC_NAMES:
+            value = metrics.get(name)
+            if value is None or isinstance(value, bool):
+                continue
+            try:
+                if math.isfinite(float(value)):
+                    has_metric = True
+                    break
+            except (TypeError, ValueError, OverflowError):
+                continue
+        if not has_metric:
+            continue
+
+        box = person.get("box")
+        if not isinstance(box, (list, tuple)) or len(box) != 4:
+            continue
+        try:
+            x1, y1, x2, y2 = (float(value) for value in box)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not all(math.isfinite(value) for value in (x1, y1, x2, y2)):
+            continue
+        if x2 <= x1 or y2 <= y1:
+            continue
+        area = (x2 - x1) * (y2 - y1)
+        if math.isfinite(area) and area > largest_area:
+            selected = person
+            largest_area = area
+    return selected
+
+
 def extract_metrics(payload):
     """Return a metric dict from Studio v1 or a legacy flat JSON message.
 
-    Our performance setup has one dancer; take the first tracked person.
-    An empty people list or a detection without skeleton metrics sends nothing.
+    For Studio frames, select the largest person with a valid box and metrics.
+    If no qualifying person is detected, send nothing for that frame.
     """
     if not isinstance(payload, dict):
         return None
@@ -130,11 +172,8 @@ def extract_metrics(payload):
         people = payload.get("people")
         if not isinstance(people, list) or not people:
             return None
-        person = people[0]
-        if not isinstance(person, dict):
-            return None
-        metrics = person.get("metrics")
-        return metrics if isinstance(metrics, dict) else None
+        person = select_person_by_largest_box(people)
+        return person["metrics"] if person is not None else None
 
     if message_type in ("hello", "pong"):
         return None
